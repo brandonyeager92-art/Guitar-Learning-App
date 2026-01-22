@@ -1315,4 +1315,3 @@ class GuitarApp {
 document.addEventListener('DOMContentLoaded', () => {
     new GuitarApp();
 });
-
