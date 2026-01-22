@@ -133,6 +133,8 @@ class GuitarApp {
                 const isPentatonicScale = intervals.length === 5;
                 const numDegrees = isPentatonicScale ? 7 : intervals.length;
                 this.updatePositionFretboards(numDegrees);
+                // Recalculate fret lines for visible fretboards after visibility change
+                this.updateFretLinesForVisibleFretboards('position');
             });
         }
 
@@ -140,6 +142,8 @@ class GuitarApp {
         for (let i = 1; i <= 7; i++) {
             document.getElementById(`pentatonic-checkbox-${i}`).addEventListener('change', () => {
                 this.updatePentatonicFretboards();
+                // Recalculate fret lines for visible fretboards after visibility change
+                this.updateFretLinesForVisibleFretboards('pentatonic');
             });
         }
     }
@@ -250,42 +254,94 @@ class GuitarApp {
         // Remove any existing fret lines
         container.querySelectorAll('.fret-line').forEach(line => line.remove());
 
-        // Use requestAnimationFrame to ensure layout is complete
+        // Use double requestAnimationFrame to ensure layout is complete (especially after visibility updates)
         requestAnimationFrame(() => {
-            // Get the first string to measure fret positions
-            const firstString = container.querySelector('.string');
-            if (!firstString) return;
+            requestAnimationFrame(() => {
+                // Get the first string to measure fret positions
+                const firstString = container.querySelector('.string');
+                if (!firstString) return;
 
-            const frets = firstString.querySelectorAll('.fret');
-            if (frets.length === 0) return;
+                const frets = firstString.querySelectorAll('.fret');
+                if (frets.length === 0) return;
 
-            // Get container dimensions and padding
-            const containerRect = container.getBoundingClientRect();
-            const containerStyle = window.getComputedStyle(container);
-            const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
-            const paddingTop = parseFloat(containerStyle.paddingTop) || 0;
-            const paddingBottom = parseFloat(containerStyle.paddingBottom) || 0;
-            const containerHeight = containerRect.height - paddingTop - paddingBottom;
-
-            // Create vertical lines at the left edge of each fret (starting from the second fret)
-            frets.forEach((fret, index) => {
-                // Skip the first fret (index 0) - no line needed before it
-                if (index === 0) return;
-                
-                const fretRect = fret.getBoundingClientRect();
+                // Get container dimensions
                 const containerRect = container.getBoundingClientRect();
                 
-                // Position line at the left edge of this fret
-                const lineX = fretRect.left - containerRect.left;
+                // Calculate height from the first to last visible string
+                const allStrings = container.querySelectorAll('.string');
+                if (allStrings.length === 0) return;
                 
-                // Create vertical line element
-                const line = document.createElement('div');
-                line.className = 'fret-line';
-                line.style.left = `${lineX}px`;
-                line.style.top = `${paddingTop}px`;
-                line.style.height = `${containerHeight}px`;
+                const firstStringRect = allStrings[0].getBoundingClientRect();
+                const lastStringRect = allStrings[allStrings.length - 1].getBoundingClientRect();
                 
-                container.appendChild(line);
+                // Calculate the top position relative to the container (top of first string)
+                const lineTop = firstStringRect.top - containerRect.top;
+                
+                // Calculate the height from top of first string to bottom of last string
+                const lineHeight = lastStringRect.bottom - firstStringRect.top;
+
+                // Only create lines if we have a valid height
+                if (lineHeight <= 0) return;
+
+                // Create vertical lines at the left edge of each fret (starting from the second fret)
+                frets.forEach((fret, index) => {
+                    // Skip the first fret (index 0) - no line needed before it
+                    if (index === 0) return;
+                    
+                    // Skip hidden frets
+                    const fretStyle = window.getComputedStyle(fret);
+                    if (fretStyle.display === 'none') return;
+                    
+                    // Get the fret's position relative to its parent string
+                    const fretRect = fret.getBoundingClientRect();
+                    const stringRect = fret.closest('.string').getBoundingClientRect();
+                    
+                    // Calculate position relative to the container
+                    // The line should be at the left edge of the fret, relative to the container
+                    const lineX = fretRect.left - containerRect.left;
+                    
+                    // Create vertical line element
+                    const line = document.createElement('div');
+                    line.className = 'fret-line';
+                    line.style.left = `${lineX}px`;
+                    line.style.top = `${lineTop}px`;
+                    line.style.height = `${lineHeight}px`;
+                    
+                    container.appendChild(line);
+                });
+            });
+        });
+    }
+
+    updateFretLinesForVisibleFretboards(type) {
+        // Update fret lines for all visible fretboards of the specified type
+        // Use triple requestAnimationFrame to ensure visibility changes have taken effect
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    for (let i = 1; i <= 7; i++) {
+                        let fretboardWrapper, fretboard;
+                        if (type === 'position') {
+                            fretboardWrapper = document.getElementById(`position-fretboard-${i}`);
+                            if (fretboardWrapper) {
+                                fretboard = fretboardWrapper.querySelector('.position-fretboard');
+                            }
+                        } else if (type === 'pentatonic') {
+                            fretboardWrapper = document.getElementById(`pentatonic-fretboard-${i}`);
+                            if (fretboardWrapper) {
+                                fretboard = fretboardWrapper.querySelector('.position-fretboard');
+                            }
+                        }
+                        
+                        // Only update lines if the fretboard wrapper is visible
+                        if (fretboard && fretboardWrapper) {
+                            const wrapperStyle = window.getComputedStyle(fretboardWrapper);
+                            if (wrapperStyle.display !== 'none') {
+                                this.addContinuousFretLines(fretboard);
+                            }
+                        }
+                    }
+                });
             });
         });
     }
@@ -779,6 +835,12 @@ class GuitarApp {
                 }
             }
         });
+        
+        // Ensure fret lines are updated on the main fretboard
+        const mainFretboard = document.getElementById('fretboard');
+        if (mainFretboard) {
+            this.addContinuousFretLines(mainFretboard);
+        }
     }
 
     displayChordFretboardsInPosition(key, intervals, selectedPosition, positionIntervals = null) {
@@ -854,6 +916,15 @@ class GuitarApp {
                         }
                     }
                 }
+            });
+            
+            // Add continuous fret lines - use triple requestAnimationFrame to ensure layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.addContinuousFretLines(fretboard);
+                    });
+                });
             });
         }
     }
@@ -954,6 +1025,15 @@ class GuitarApp {
                     }
                 }
             });
+            
+            // Add continuous fret lines - use triple requestAnimationFrame to ensure layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.addContinuousFretLines(fretboard);
+                    });
+                });
+            });
         }
     }
 
@@ -1031,6 +1111,15 @@ class GuitarApp {
                         }
                     }
                 }
+            });
+            
+            // Add continuous fret lines - use triple requestAnimationFrame to ensure layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.addContinuousFretLines(fretboard);
+                    });
+                });
             });
         }
     }
@@ -1147,6 +1236,15 @@ class GuitarApp {
                     }
                 }
             });
+            
+            // Add continuous fret lines - use triple requestAnimationFrame to ensure layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.addContinuousFretLines(fretboard);
+                    });
+                });
+            });
         }
     }
 
@@ -1230,6 +1328,15 @@ class GuitarApp {
                     }
                 }
             });
+            
+            // Add continuous fret lines - use triple requestAnimationFrame to ensure layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.addContinuousFretLines(fretboard);
+                    });
+                });
+            });
         }
     }
 
@@ -1303,6 +1410,15 @@ class GuitarApp {
                         }
                     }
                 }
+            });
+            
+            // Add continuous fret lines - use triple requestAnimationFrame to ensure layout is ready
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.addContinuousFretLines(fretboard);
+                    });
+                });
             });
         }
     }
@@ -1392,6 +1508,12 @@ class GuitarApp {
                 }
             }
         });
+        
+        // Ensure fret lines are updated on the main fretboard
+        const mainFretboard = document.getElementById('fretboard');
+        if (mainFretboard) {
+            this.addContinuousFretLines(mainFretboard);
+        }
     }
 }
 
