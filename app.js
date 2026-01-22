@@ -128,7 +128,10 @@ class GuitarApp {
                 const key = document.getElementById('scale-key').value;
                 const mode = document.getElementById('scale-mode').value;
                 const intervals = SCALE_INTERVALS[mode];
-                this.updatePositionFretboards(intervals.length);
+                // For pentatonic scales, show 7 chord fretboards (matching parent scale)
+                const isPentatonicScale = intervals.length === 5;
+                const numDegrees = isPentatonicScale ? 7 : intervals.length;
+                this.updatePositionFretboards(numDegrees);
             });
         }
 
@@ -598,12 +601,16 @@ class GuitarApp {
             this.ensurePositionFretboardsRendered();
             const selectedPosition = parseInt(positionValue);
             // For pentatonic scales, use parent scale intervals for chord display
+            // But use original intervals for position range calculation
             let chordIntervals = intervals;
+            let positionIntervals = intervals;
             if (isPentatonicScale) {
                 const isMajor = mode === 'majorPentatonic';
                 chordIntervals = isMajor ? SCALE_INTERVALS.ionian : SCALE_INTERVALS.aeolian;
+                // Keep original pentatonic intervals for position range
+                positionIntervals = intervals;
             }
-            this.displayChordFretboardsInPosition(key, chordIntervals, selectedPosition);
+            this.displayChordFretboardsInPosition(key, chordIntervals, selectedPosition, positionIntervals);
                     // Always show 7 chord fretboards for pentatonic scales (matching parent scale)
                     const numChordDegrees = isPentatonicScale ? 7 : intervals.length;
                     this.updatePositionFretboards(numChordDegrees);
@@ -632,7 +639,8 @@ class GuitarApp {
                     } else {
                         this.displayOverlappingPentatonicFretboards(key, mode);
                     }
-                    this.updatePentatonicFretboards(5); // Pentatonic has 5 positions
+                    // Use 7 degrees since we're showing pentatonics based on parent scale (ionian/aeolian)
+                    this.updatePentatonicFretboards(7);
                 } else {
                     pentatonicFretboardsContainer.style.display = 'none';
                 }
@@ -725,9 +733,12 @@ class GuitarApp {
         });
     }
 
-    displayChordFretboardsInPosition(key, intervals, selectedPosition) {
+    displayChordFretboardsInPosition(key, intervals, selectedPosition, positionIntervals = null) {
         const keyIndex = NOTES.indexOf(key);
-        const fretRange = this.getPositionFretRange(key, intervals, selectedPosition);
+        // Use positionIntervals for fret range if provided (for pentatonic scales),
+        // otherwise use intervals (chord intervals)
+        const fretRangeIntervals = positionIntervals || intervals;
+        const fretRange = this.getPositionFretRange(key, fretRangeIntervals, selectedPosition);
         const numDegrees = intervals.length;
         
         // Display chords for each scale degree
@@ -984,12 +995,21 @@ class GuitarApp {
             const fretboardWrapper = document.getElementById(`pentatonic-fretboard-${i}`);
             if (checkbox && fretboardWrapper) {
                 if (i <= numDegrees) {
-                    // Show checkbox and fretboard (if checked)
-                    checkbox.parentElement.style.display = 'flex';
+                    // Show checkbox (always visible) and fretboard (if checked)
+                    const parentElement = checkbox.parentElement;
+                    if (parentElement) {
+                        parentElement.style.display = 'flex';
+                        parentElement.style.visibility = 'visible';
+                    }
+                    checkbox.style.display = '';
+                    checkbox.style.visibility = 'visible';
                     fretboardWrapper.style.display = checkbox.checked ? 'flex' : 'none';
                 } else {
                     // Hide checkbox and fretboard for scales with fewer degrees
-                    checkbox.parentElement.style.display = 'none';
+                    const parentElement = checkbox.parentElement;
+                    if (parentElement) {
+                        parentElement.style.display = 'none';
+                    }
                     fretboardWrapper.style.display = 'none';
                 }
             }
