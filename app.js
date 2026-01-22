@@ -1108,3 +1108,4 @@ document.addEventListener('DOMContentLoaded', () => {
     new GuitarApp();
 });
 
+
