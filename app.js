@@ -576,7 +576,7 @@ class GuitarApp {
         const standardPositions = {
             1: { minFret: 7, maxFret: 11 },
             2: { minFret: 9, maxFret: 13 },
-            3: { minFret: 12, maxFret: 16 },
+            3: { minFret: 12, maxFret: 15 },
             4: { minFret: 2, maxFret: 6 },
             5: { minFret: 5, maxFret: 9 }
         };
