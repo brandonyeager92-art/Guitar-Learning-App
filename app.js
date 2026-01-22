@@ -371,10 +371,10 @@ class GuitarApp {
     updateDisplay() {
         this.clearFretboard();
 
-        if (this.currentMode === 'scales') {
-            this.displayScale();
-        } else {
-            this.displayChord();
+            if (this.currentMode === 'scales') {
+                this.displayScale();
+            } else {
+                this.displayChord();
         }
     }
 
@@ -497,7 +497,34 @@ class GuitarApp {
             }
         }
         
-        // For other scales (pentatonic, or modes with different interval patterns),
+        // For pentatonic scales, use the same standard positions as their parent scale
+        // (ionian for major pentatonic, aeolian for minor pentatonic)
+        // This ensures positions match when showing pentatonics over the full parent scale
+        const isMajorPentatonic = intervals.length === 5 && JSON.stringify(intervals) === JSON.stringify(SCALE_INTERVALS.majorPentatonic);
+        const isMinorPentatonic = intervals.length === 5 && JSON.stringify(intervals) === JSON.stringify(SCALE_INTERVALS.minorPentatonic);
+        
+        if (isMajorPentatonic || isMinorPentatonic) {
+            // Use standard positions shifted by key offset, just like 7-note scales
+            // This ensures C major pentatonic position 1 is frets 7-11, matching C major
+            if (standardPositions[position]) {
+                // Calculate the offset: how many semitones is this key from C?
+                const cIndex = NOTES.indexOf('C');
+                const keyIndex = NOTES.indexOf(key);
+                const keyOffset = (keyIndex - cIndex + 12) % 12;
+                
+                // Shift the standard positions by the key offset
+                const shiftedMinFret = standardPositions[position].minFret + keyOffset;
+                const shiftedMaxFret = standardPositions[position].maxFret + keyOffset;
+                
+                return {
+                    minFret: Math.max(0, shiftedMinFret),
+                    maxFret: Math.min(FRETS, shiftedMaxFret),
+                    startingFret: Math.max(0, shiftedMinFret)
+                };
+            }
+        }
+        
+        // For other scales (modes with different interval patterns),
         // calculate dynamically
         const keyIndex = NOTES.indexOf(key);
         const rootNote = NOTES[keyIndex];
@@ -546,6 +573,7 @@ class GuitarApp {
         const pentatonicFretboardsContainer = document.getElementById('pentatonic-fretboards');
         const isScaleWithChords = intervals.length === 7 || intervals.length === 5; // 7-note scales or pentatonic
         const isSevenNoteScale = intervals.length === 7;
+        const isPentatonicScale = intervals.length === 5; // Major or Minor Pentatonic
         
         if (this.currentMode === 'scales') {
             // Show the combined container if we have scales that support chords or pentatonics
@@ -557,8 +585,8 @@ class GuitarApp {
                     scaleOptionsContainer.style.display = 'none';
                 }
                 
-                // Show pentatonics section for 7-note scales
-                if (isSevenNoteScale) {
+                // Show pentatonics section for 7-note scales AND pentatonic scales (always show for pentatonic)
+                if (isSevenNoteScale || isPentatonicScale) {
                     pentatonicOptionsContainer.style.display = 'flex';
                 } else {
                     pentatonicOptionsContainer.style.display = 'none';
@@ -566,16 +594,16 @@ class GuitarApp {
                 
                 // Show/hide chord fretboards (for 7-note scales and pentatonic scales, not full fretboard)
                 if (positionValue !== 'full' && isScaleWithChords) {
-                    positionFretboardsContainer.style.display = 'block';
-                    this.ensurePositionFretboardsRendered();
-                    const selectedPosition = parseInt(positionValue);
-                    this.displayChordFretboardsInPosition(key, intervals, selectedPosition);
+            positionFretboardsContainer.style.display = 'block';
+            this.ensurePositionFretboardsRendered();
+            const selectedPosition = parseInt(positionValue);
+            this.displayChordFretboardsInPosition(key, intervals, selectedPosition);
                     this.updatePositionFretboards(intervals.length);
-                } else {
-                    positionFretboardsContainer.style.display = 'none';
-                }
-                
-                // Show/hide pentatonic fretboards (for 7-note scales)
+        } else {
+            positionFretboardsContainer.style.display = 'none';
+        }
+
+                // Show/hide pentatonic fretboards (for 7-note scales AND pentatonic scales)
                 if (isSevenNoteScale) {
                     pentatonicFretboardsContainer.style.display = 'block';
                     this.ensurePentatonicFretboardsRendered();
@@ -586,6 +614,17 @@ class GuitarApp {
                         this.displayPentatonicFretboards(key, intervals);
                     }
                     this.updatePentatonicFretboards(intervals.length);
+                } else if (isPentatonicScale) {
+                    // For pentatonic scales, show overlapping pentatonic scales
+                    pentatonicFretboardsContainer.style.display = 'block';
+                    this.ensurePentatonicFretboardsRendered();
+                    if (positionValue !== 'full') {
+                        const selectedPosition = parseInt(positionValue);
+                        this.displayOverlappingPentatonicFretboardsInPosition(key, mode, selectedPosition);
+                    } else {
+                        this.displayOverlappingPentatonicFretboards(key, mode);
+                    }
+                    this.updatePentatonicFretboards(5); // Pentatonic has 5 positions
                 } else {
                     pentatonicFretboardsContainer.style.display = 'none';
                 }
@@ -754,7 +793,7 @@ class GuitarApp {
                 if (i <= numDegrees) {
                     // Show checkbox and fretboard (if checked)
                     checkbox.parentElement.style.display = 'flex';
-                    fretboardWrapper.style.display = checkbox.checked ? 'flex' : 'none';
+                fretboardWrapper.style.display = checkbox.checked ? 'flex' : 'none';
                 } else {
                     // Hide checkbox and fretboard for scales with fewer degrees
                     checkbox.parentElement.style.display = 'none';
@@ -941,6 +980,175 @@ class GuitarApp {
         }
     }
 
+    displayOverlappingPentatonicFretboardsInPosition(key, mode, selectedPosition) {
+        // Use the same logic as ionian/aeolian: map checkboxes directly to parent scale degrees
+        const keyIndex = NOTES.indexOf(key);
+        const isMajor = mode === 'majorPentatonic';
+        
+        // Get the parent scale intervals (major pentatonic comes from major/ionian, minor from minor/aeolian)
+        const parentScaleIntervals = isMajor ? SCALE_INTERVALS.ionian : SCALE_INTERVALS.aeolian;
+        const numDegrees = parentScaleIntervals.length;
+        
+        const currentIntervals = SCALE_INTERVALS[mode];
+        const fretRange = this.getPositionFretRange(key, currentIntervals, selectedPosition);
+        
+        // Display overlapping pentatonic scales for each scale degree (matching ionian/aeolian logic)
+        for (let degree = 0; degree < numDegrees; degree++) {
+            const rootInterval = parentScaleIntervals[degree];
+            const rootNote = NOTES[(keyIndex + rootInterval) % 12];
+            
+            // Determine if this degree should use major or minor pentatonic
+            // Based on the chord quality: major/augmented → major pentatonic, minor/diminished → minor pentatonic
+            const chordQuality = this.getChordQuality(parentScaleIntervals, degree);
+            const useMajorPentatonic = chordQuality === 'major' || chordQuality === 'augmented';
+            const pentatonicIntervals = useMajorPentatonic ? SCALE_INTERVALS.majorPentatonic : SCALE_INTERVALS.minorPentatonic;
+            
+            // Get pentatonic scale notes
+            const pentatonicNotes = pentatonicIntervals.map(interval => {
+                const noteIndex = (NOTES.indexOf(rootNote) + interval) % 12;
+                return NOTES[noteIndex];
+            });
+            
+            // Find the fretboard container for this pentatonic (checkbox number = degree + 1)
+            const fretboardWrapper = document.getElementById(`pentatonic-fretboard-${degree + 1}`);
+            if (!fretboardWrapper) continue;
+            const fretboard = fretboardWrapper.querySelector('.position-fretboard');
+            if (!fretboard) continue;
+            
+            // Update the label with pentatonic name (matching ionian/aeolian format)
+            const labelElement = fretboardWrapper.querySelector('.position-label');
+            if (labelElement) {
+                const degreeLabel = this.getDegreeLabel(degree);
+                const pentatonicName = this.getPentatonicName(rootNote, useMajorPentatonic);
+                labelElement.textContent = `${degreeLabel} - ${pentatonicName}`;
+            }
+            
+            // Clear existing notes
+            fretboard.querySelectorAll('.note').forEach(note => note.remove());
+            
+            // Apply the same visibility settings as the main fretboard
+            this.updateFretboardVisibility(fretRange.minFret, fretRange.maxFret, fretboard);
+            
+            // Render pentatonic scale notes for this position
+            GUITAR_STRINGS.forEach((stringNote, stringIndex) => {
+                for (let fret = fretRange.minFret; fret <= fretRange.maxFret; fret++) {
+                    const note = this.getNoteAtPosition(stringIndex, fret);
+                    
+                    if (pentatonicNotes.includes(note)) {
+                        const fretDiv = fretboard.querySelector(`.fret[data-string="${stringIndex}"][data-fret="${fret}"]`);
+                        if (fretDiv) {
+                            const noteDiv = document.createElement('div');
+                            const interval = this.getIntervalFromRoot(note, rootNote);
+                            const intervalClass = this.getIntervalClass(interval);
+                            
+                            if (this.currentDisplay === 'notes') {
+                                const noteColor = this.getNoteColor(note);
+                                noteDiv.className = 'note scale';
+                                noteDiv.style.background = noteColor;
+                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.textContent = note;
+                            } else {
+                                // Use interval name with flat/sharp designations
+                                noteDiv.className = `note scale interval-${intervalClass}`;
+                                const intervalName = INTERVAL_NAMES[interval];
+                                noteDiv.textContent = intervalName;
+                            }
+                            
+                            if (note === rootNote) {
+                                noteDiv.classList.add('root');
+                            }
+                            
+                            fretDiv.appendChild(noteDiv);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    displayOverlappingPentatonicFretboards(key, mode) {
+        // Use the same logic as ionian/aeolian: map checkboxes directly to parent scale degrees
+        const keyIndex = NOTES.indexOf(key);
+        const isMajor = mode === 'majorPentatonic';
+        
+        // Get the parent scale intervals (major pentatonic comes from major/ionian, minor from minor/aeolian)
+        const parentScaleIntervals = isMajor ? SCALE_INTERVALS.ionian : SCALE_INTERVALS.aeolian;
+        const numDegrees = parentScaleIntervals.length;
+        
+        // Display pentatonic scales for each scale degree (matching ionian/aeolian logic)
+        for (let degree = 0; degree < numDegrees; degree++) {
+            const rootInterval = parentScaleIntervals[degree];
+            const rootNote = NOTES[(keyIndex + rootInterval) % 12];
+            
+            // Determine if this degree should use major or minor pentatonic
+            // Based on the chord quality: major/augmented → major pentatonic, minor/diminished → minor pentatonic
+            const chordQuality = this.getChordQuality(parentScaleIntervals, degree);
+            const useMajorPentatonic = chordQuality === 'major' || chordQuality === 'augmented';
+            const pentatonicIntervals = useMajorPentatonic ? SCALE_INTERVALS.majorPentatonic : SCALE_INTERVALS.minorPentatonic;
+            
+            // Get pentatonic scale notes
+            const pentatonicNotes = pentatonicIntervals.map(interval => {
+                const noteIndex = (NOTES.indexOf(rootNote) + interval) % 12;
+                return NOTES[noteIndex];
+            });
+            
+            // Find the fretboard container for this pentatonic (checkbox number = degree + 1)
+            const fretboardWrapper = document.getElementById(`pentatonic-fretboard-${degree + 1}`);
+            if (!fretboardWrapper) continue;
+            const fretboard = fretboardWrapper.querySelector('.position-fretboard');
+            if (!fretboard) continue;
+            
+            // Update the label with pentatonic name (matching ionian/aeolian format)
+            const labelElement = fretboardWrapper.querySelector('.position-label');
+            if (labelElement) {
+                const degreeLabel = this.getDegreeLabel(degree);
+                const pentatonicName = this.getPentatonicName(rootNote, useMajorPentatonic);
+                labelElement.textContent = `${degreeLabel} - ${pentatonicName}`;
+            }
+            
+            // Clear existing notes
+            fretboard.querySelectorAll('.note').forEach(note => note.remove());
+            
+            // Show all frets for full fretboard
+            this.updateFretboardVisibility(0, FRETS, fretboard);
+            
+            // Render pentatonic scale notes
+            GUITAR_STRINGS.forEach((stringNote, stringIndex) => {
+                for (let fret = 0; fret <= FRETS; fret++) {
+                    const note = this.getNoteAtPosition(stringIndex, fret);
+                    
+                    if (pentatonicNotes.includes(note)) {
+                        const fretDiv = fretboard.querySelector(`.fret[data-string="${stringIndex}"][data-fret="${fret}"]`);
+                        if (fretDiv) {
+                            const noteDiv = document.createElement('div');
+                            const interval = this.getIntervalFromRoot(note, rootNote);
+                            const intervalClass = this.getIntervalClass(interval);
+                            
+                            if (this.currentDisplay === 'notes') {
+                                const noteColor = this.getNoteColor(note);
+                                noteDiv.className = 'note scale';
+                                noteDiv.style.background = noteColor;
+                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.textContent = note;
+                            } else {
+                                // Use interval name with flat/sharp designations
+                                noteDiv.className = `note scale interval-${intervalClass}`;
+                                const intervalName = INTERVAL_NAMES[interval];
+                                noteDiv.textContent = intervalName;
+                            }
+                            
+                            if (note === rootNote) {
+                                noteDiv.classList.add('root');
+                            }
+                            
+                            fretDiv.appendChild(noteDiv);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
     displayChordFretboards(key, scaleIntervals) {
         const keyIndex = NOTES.indexOf(key);
         const numDegrees = scaleIntervals.length;
@@ -1025,7 +1233,7 @@ class GuitarApp {
                 if (i <= numDegrees) {
                     // Show checkbox and fretboard (if checked)
                     checkbox.parentElement.style.display = 'flex';
-                    fretboardWrapper.style.display = checkbox.checked ? 'flex' : 'none';
+                fretboardWrapper.style.display = checkbox.checked ? 'flex' : 'none';
                 } else {
                     // Hide checkbox and fretboard for scales with fewer degrees
                     checkbox.parentElement.style.display = 'none';
