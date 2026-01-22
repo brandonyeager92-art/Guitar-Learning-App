@@ -6,19 +6,20 @@ const GUITAR_STRINGS = ['E', 'A', 'D', 'G', 'B', 'E']; // Standard tuning
 const FRETS = 16; // Number of frets to display
 
 // Note color mapping - consistent colors for each note regardless of key
+// Based on chromatic scale color scheme
 const NOTE_COLORS = {
-    'C': '#3498db',   // Blue
-    'C#': '#9b59b6',  // Purple
-    'D': '#32cd32',   // Green
-    'D#': '#00ced1',  // Cyan
-    'E': '#ffa500',   // Orange
-    'F': '#e91e63',   // Magenta
-    'F#': '#ff69b4',  // Pink
-    'G': '#ffd700',   // Gold
-    'G#': '#8b4513',  // Brown
-    'A': '#e74c3c',   // Red (matching root)
-    'A#': '#ff6b6b',  // Light red/pink
-    'B': '#1abc9c'    // Teal
+    'C': '#ff0000',   // Bright red
+    'C#': '#ff4500',  // Orange-red
+    'D': '#ff8c00',   // Orange
+    'D#': '#ffa500',  // Yellow-orange
+    'E': '#ffff00',   // Bright yellow
+    'F': '#90ee90',   // Light green
+    'F#': '#228b22',  // Darker green
+    'G': '#008080',   // Teal
+    'G#': '#000080',  // Dark blue
+    'A': '#800080',   // Purple
+    'A#': '#ff00ff',  // Magenta
+    'B': '#ff69b4'    // Pink-purple
 };
 
 // Scale intervals (semitones from root)
@@ -239,6 +240,53 @@ class GuitarApp {
             }
 
             container.appendChild(stringDiv);
+        });
+
+        // Add continuous vertical fret lines after all strings are created
+        this.addContinuousFretLines(container);
+    }
+
+    addContinuousFretLines(container) {
+        // Remove any existing fret lines
+        container.querySelectorAll('.fret-line').forEach(line => line.remove());
+
+        // Use requestAnimationFrame to ensure layout is complete
+        requestAnimationFrame(() => {
+            // Get the first string to measure fret positions
+            const firstString = container.querySelector('.string');
+            if (!firstString) return;
+
+            const frets = firstString.querySelectorAll('.fret');
+            if (frets.length === 0) return;
+
+            // Get container dimensions and padding
+            const containerRect = container.getBoundingClientRect();
+            const containerStyle = window.getComputedStyle(container);
+            const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
+            const paddingTop = parseFloat(containerStyle.paddingTop) || 0;
+            const paddingBottom = parseFloat(containerStyle.paddingBottom) || 0;
+            const containerHeight = containerRect.height - paddingTop - paddingBottom;
+
+            // Create vertical lines at the left edge of each fret (starting from the second fret)
+            frets.forEach((fret, index) => {
+                // Skip the first fret (index 0) - no line needed before it
+                if (index === 0) return;
+                
+                const fretRect = fret.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                
+                // Position line at the left edge of this fret
+                const lineX = fretRect.left - containerRect.left;
+                
+                // Create vertical line element
+                const line = document.createElement('div');
+                line.className = 'fret-line';
+                line.style.left = `${lineX}px`;
+                line.style.top = `${paddingTop}px`;
+                line.style.height = `${containerHeight}px`;
+                
+                container.appendChild(line);
+            });
         });
     }
 
@@ -712,7 +760,7 @@ class GuitarApp {
                             const noteColor = this.getNoteColor(note);
                             noteDiv.className = 'note scale';
                             noteDiv.style.background = noteColor;
-                            noteDiv.style.borderColor = this.darkenColor(noteColor);
+                            noteDiv.style.borderColor = '#000000';
                             noteDiv.textContent = note;
                         } else {
                             // Use interval color when displaying intervals
@@ -790,7 +838,7 @@ class GuitarApp {
                                 const noteColor = this.getNoteColor(note);
                                 noteDiv.className = 'note chord';
                                 noteDiv.style.background = noteColor;
-                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.style.borderColor = '#000000';
                                 noteDiv.textContent = note;
                             } else {
                                 noteDiv.className = `note chord interval-${intervalClass}`;
@@ -888,7 +936,7 @@ class GuitarApp {
                                 const noteColor = this.getNoteColor(note);
                                 noteDiv.className = 'note scale';
                                 noteDiv.style.background = noteColor;
-                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.style.borderColor = '#000000';
                                 noteDiv.textContent = note;
                             } else {
                                 // Use interval name with flat/sharp designations
@@ -966,7 +1014,7 @@ class GuitarApp {
                                 const noteColor = this.getNoteColor(note);
                                 noteDiv.className = 'note scale';
                                 noteDiv.style.background = noteColor;
-                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.style.borderColor = '#000000';
                                 noteDiv.textContent = note;
                             } else {
                                 // Use interval name with flat/sharp designations
@@ -1081,7 +1129,7 @@ class GuitarApp {
                                 const noteColor = this.getNoteColor(note);
                                 noteDiv.className = 'note scale';
                                 noteDiv.style.background = noteColor;
-                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.style.borderColor = '#000000';
                                 noteDiv.textContent = note;
                             } else {
                                 // Use interval name with flat/sharp designations
@@ -1164,7 +1212,7 @@ class GuitarApp {
                                 const noteColor = this.getNoteColor(note);
                                 noteDiv.className = 'note scale';
                                 noteDiv.style.background = noteColor;
-                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.style.borderColor = '#000000';
                                 noteDiv.textContent = note;
                             } else {
                                 // Use interval name with flat/sharp designations
@@ -1239,7 +1287,7 @@ class GuitarApp {
                                 const noteColor = this.getNoteColor(note);
                                 noteDiv.className = 'note chord';
                                 noteDiv.style.background = noteColor;
-                                noteDiv.style.borderColor = this.darkenColor(noteColor);
+                                noteDiv.style.borderColor = '#000000';
                                 noteDiv.textContent = note;
                             } else {
                                 noteDiv.className = `note chord interval-${intervalClass}`;
@@ -1326,7 +1374,7 @@ class GuitarApp {
                             const noteColor = this.getNoteColor(note);
                             noteDiv.className = 'note chord';
                             noteDiv.style.background = noteColor;
-                            noteDiv.style.borderColor = this.darkenColor(noteColor);
+                            noteDiv.style.borderColor = '#000000';
                             noteDiv.textContent = note;
                         } else {
                             // Use interval color when displaying intervals
