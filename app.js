@@ -597,8 +597,16 @@ class GuitarApp {
             positionFretboardsContainer.style.display = 'block';
             this.ensurePositionFretboardsRendered();
             const selectedPosition = parseInt(positionValue);
-            this.displayChordFretboardsInPosition(key, intervals, selectedPosition);
-                    this.updatePositionFretboards(intervals.length);
+            // For pentatonic scales, use parent scale intervals for chord display
+            let chordIntervals = intervals;
+            if (isPentatonicScale) {
+                const isMajor = mode === 'majorPentatonic';
+                chordIntervals = isMajor ? SCALE_INTERVALS.ionian : SCALE_INTERVALS.aeolian;
+            }
+            this.displayChordFretboardsInPosition(key, chordIntervals, selectedPosition);
+                    // Always show 7 chord fretboards for pentatonic scales (matching parent scale)
+                    const numChordDegrees = isPentatonicScale ? 7 : intervals.length;
+                    this.updatePositionFretboards(numChordDegrees);
         } else {
             positionFretboardsContainer.style.display = 'none';
         }
@@ -648,8 +656,16 @@ class GuitarApp {
             // Use position fretboards container for full mode too
             positionFretboardsContainer.style.display = 'block';
             this.ensurePositionFretboardsRendered();
-            this.displayChordFretboards(key, intervals);
-            this.updatePositionFretboards(intervals.length);
+            // For pentatonic scales, use parent scale intervals for chord display
+            let chordIntervals = intervals;
+            if (isPentatonicScale) {
+                const isMajor = mode === 'majorPentatonic';
+                chordIntervals = isMajor ? SCALE_INTERVALS.ionian : SCALE_INTERVALS.aeolian;
+            }
+            this.displayChordFretboards(key, chordIntervals);
+            // Always show 7 chord fretboards for pentatonic scales (matching parent scale)
+            const numChordDegrees = isPentatonicScale ? 7 : intervals.length;
+            this.updatePositionFretboards(numChordDegrees);
             chordFretboardsContainer.style.display = 'none';
         } else {
             chordFretboardsContainer.style.display = 'none';
@@ -1315,3 +1331,4 @@ class GuitarApp {
 document.addEventListener('DOMContentLoaded', () => {
     new GuitarApp();
 });
+
